@@ -1,0 +1,46 @@
+name: License Check
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  license_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch last commit for diff comparison
+
+      - name: Get PR Diff
+        run: |
+          git diff --unified=0 HEAD^ > pr_diff.patch
+          cat pr_diff.patch
+
+      - name: Check if there are changes
+        id: has_changes
+        run: |
+          if [ -s pr_diff.patch ]; then
+            echo "has_changes=true" >> $GITHUB_ENV
+          else
+            echo "has_changes=false" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Print Environment Variables
+        run: printenv
+
+      - name: Extract changed files
+        if: env.has_changes == 'true'
+        id: changed_files
+        run: |
+          echo "files=$(git diff --name-only HEAD^ | jq -R -s -c 'split("\n")[:-1]')" >> $GITHUB_ENV
+
+      - name: Run License Check Script
+        if: env.has_changes == 'true'
+        run: python .github/scripts/license_check.py
